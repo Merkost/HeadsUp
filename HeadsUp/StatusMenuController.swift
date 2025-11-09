@@ -1,174 +1,178 @@
 // StatusMenuController.swift
+// HeadsUp
+//
+// Manages the status bar menu and user interactions
 
 import Cocoa
 import EventKit
 
+// MARK: - Status Menu Controller
 class StatusMenuController: NSObject {
+
+    // MARK: - Properties
     private let statusItem: NSStatusItem
-    private let eventStore: EKEventStore
+    private let calendarService: CalendarService
     private weak var appDelegate: AppDelegate?
-    
-    init(statusItem: NSStatusItem, eventStore: EKEventStore, appDelegate: AppDelegate) {
+
+    // MARK: - Initialization
+    init(statusItem: NSStatusItem, calendarService: CalendarService, appDelegate: AppDelegate) {
         self.statusItem = statusItem
-        self.eventStore = eventStore
+        self.calendarService = calendarService
         self.appDelegate = appDelegate
         super.init()
         setupMenu()
     }
     
+    // MARK: - Menu Setup
     private func setupMenu() {
         let menu = NSMenu()
-        let eventsByDate = fetchUpcomingEvents()
+        let eventsByDate = calendarService.fetchUpcomingEvents()
         let sortedDates = eventsByDate.keys.sorted()
-        
+
+        // Add events section
         if sortedDates.isEmpty {
-            let noEventsItem = NSMenuItem(title: "No more events", action: nil, keyEquivalent: "")
-            noEventsItem.isEnabled = false
-            menu.addItem(noEventsItem)
+            addNoEventsItem(to: menu)
         } else {
-            for date in sortedDates {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateStyle = .full
-                let dateString = dateFormatter.string(from: date)
-                
-                let dateItem = NSMenuItem(title: dateString, action: nil, keyEquivalent: "")
-                dateItem.isEnabled = false
-                menu.addItem(dateItem)
-                
-                if let events = eventsByDate[date] {
-                    for event in events {
-                        let timeFormatter = DateFormatter()
-                        timeFormatter.timeStyle = .short
-                        let timeString = timeFormatter.string(from: event.startDate)
-                        
-                        let eventTitle = "\(timeString) - \(event.title ?? "No Title")"
-                        let eventItem = NSMenuItem(title: eventTitle, action: #selector(eventSelected(_:)), keyEquivalent: "")
-                        eventItem.representedObject = event
-                        eventItem.target = self
-                        menu.addItem(eventItem)
-                    }
-                }
-                menu.addItem(NSMenuItem.separator())
-            }
+            addEventItems(to: menu, eventsByDate: eventsByDate, sortedDates: sortedDates)
         }
         
-        // Separator before Settings
+        // Add settings section
+        addSettingsSection(to: menu)
+
+        // Add bottom section (About, Quit)
+        addBottomSection(to: menu)
+
+        // Attach menu to status item
+        statusItem.menu = menu
+    }
+
+    // MARK: - Menu Building Helpers
+    private func addNoEventsItem(to menu: NSMenu) {
+        let noEventsItem = NSMenuItem(title: "No upcoming events", action: nil, keyEquivalent: "")
+        noEventsItem.isEnabled = false
+        menu.addItem(noEventsItem)
+    }
+
+    private func addEventItems(to menu: NSMenu, eventsByDate: [Date: [EKEvent]], sortedDates: [Date]) {
+        for date in sortedDates {
+            // Add date header
+            let dateString = TimeFormatter.formatFullDate(date)
+            let dateItem = NSMenuItem(title: dateString, action: nil, keyEquivalent: "")
+            dateItem.isEnabled = false
+            menu.addItem(dateItem)
+
+            // Add events for this date
+            if let events = eventsByDate[date] {
+                for event in events {
+                    let timeString = TimeFormatter.formatTime(event.startDate)
+                    let eventTitle = "\(timeString) - \(event.title ?? "No Title")"
+                    let eventItem = NSMenuItem(title: eventTitle, action: #selector(eventSelected(_:)), keyEquivalent: "")
+                    eventItem.representedObject = event
+                    eventItem.target = self
+                    menu.addItem(eventItem)
+                }
+            }
+            menu.addItem(NSMenuItem.separator())
+        }
+    }
+
+    private func addSettingsSection(to menu: NSMenu) {
         menu.addItem(NSMenuItem.separator())
 
-        // Settings Menu Item with Submenu
         let settingsMenuItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         let settingsSubmenu = NSMenu(title: "Settings")
 
-        // Toggle for always showing the next event
-        let alwaysShowNextEvent = UserDefaults.standard.bool(forKey: "AlwaysShowNextEvent")
-        let toggleTitle = "Always show next event"
-        let toggleItem = NSMenuItem(title: toggleTitle, action: #selector(toggleAlwaysShowNextEvent(_:)), keyEquivalent: "")
+        // Always show next event toggle
+        let alwaysShowNextEvent = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysShowNextEvent)
+        let toggleItem = NSMenuItem(
+            title: "Always show next event",
+            action: #selector(toggleAlwaysShowNextEvent(_:)),
+            keyEquivalent: ""
+        )
         toggleItem.state = alwaysShowNextEvent ? .on : .off
         toggleItem.target = self
         settingsSubmenu.addItem(toggleItem)
 
-        // **Add the new setting: Show past events for today**
-        let showPastEvents = UserDefaults.standard.bool(forKey: "ShowPastEventsForToday")
-        let showPastEventsTitle = "Show past events for today"
-        let showPastEventsItem = NSMenuItem(title: showPastEventsTitle, action: #selector(toggleShowPastEvents(_:)), keyEquivalent: "")
+        // Show past events for today toggle
+        let showPastEvents = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
+        let showPastEventsItem = NSMenuItem(
+            title: "Show past events for today",
+            action: #selector(toggleShowPastEvents(_:)),
+            keyEquivalent: ""
+        )
         showPastEventsItem.state = showPastEvents ? .on : .off
         showPastEventsItem.target = self
         settingsSubmenu.addItem(showPastEventsItem)
 
-        // Assign the submenu to the Settings menu item
         settingsMenuItem.submenu = settingsSubmenu
         menu.addItem(settingsMenuItem)
+    }
 
-        // Separator before About and Quit
+    private func addBottomSection(to menu: NSMenu) {
         menu.addItem(NSMenuItem.separator())
 
-        // About Menu Item
-        let aboutItem = NSMenuItem(title: "About", action: #selector(showAboutWindow), keyEquivalent: "")
+        // Show/Hide Widget menu item
+        let widgetItem = NSMenuItem(title: "Toggle Desktop Widget", action: #selector(toggleWidget), keyEquivalent: "w")
+        widgetItem.target = self
+        menu.addItem(widgetItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        // About menu item
+        let aboutItem = NSMenuItem(title: "About HeadsUp", action: #selector(showAboutWindow), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
 
-        // Quit Menu Item
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        // Quit menu item
+        let quitItem = NSMenuItem(title: "Quit HeadsUp", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
-
-        // Attach the menu to the status item
-        statusItem.menu = menu
     }
 
-    // **Add the new toggle action**
-    @objc func toggleShowPastEvents(_ sender: NSMenuItem) {
-        let currentSetting = UserDefaults.standard.bool(forKey: "ShowPastEventsForToday")
-        let newSetting = !currentSetting
-        UserDefaults.standard.set(newSetting, forKey: "ShowPastEventsForToday")
-        sender.state = newSetting ? .on : .off
-        // Refresh the menu to show/hide past events
-        setupMenu()
-    }
-
-    // **Existing methods: eventSelected(_:), toggleAlwaysShowNextEvent(_:), showAboutWindow()**
-
+    // MARK: - Action Handlers
     @objc func eventSelected(_ sender: NSMenuItem) {
-        if let event = sender.representedObject as? EKEvent {
-            // Show the fullscreen alert for the selected event
-            appDelegate?.showFullscreenAlert(for: event)
-        }
+        guard let event = sender.representedObject as? EKEvent else { return }
+        appDelegate?.showFullscreenAlert(for: event)
     }
-    
+
     @objc func toggleAlwaysShowNextEvent(_ sender: NSMenuItem) {
-        let currentSetting = UserDefaults.standard.bool(forKey: "AlwaysShowNextEvent")
+        let currentSetting = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysShowNextEvent)
         let newSetting = !currentSetting
-        UserDefaults.standard.set(newSetting, forKey: "AlwaysShowNextEvent")
+        UserDefaults.standard.set(newSetting, forKey: UserDefaultsKeys.alwaysShowNextEvent)
         sender.state = newSetting ? .on : .off
         appDelegate?.updateStatusItemTitle()
     }
-    
+
+    @objc func toggleShowPastEvents(_ sender: NSMenuItem) {
+        let currentSetting = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
+        let newSetting = !currentSetting
+        UserDefaults.standard.set(newSetting, forKey: UserDefaultsKeys.showPastEventsForToday)
+        sender.state = newSetting ? .on : .off
+        setupMenu() // Refresh menu to show/hide past events
+    }
+
+    @objc func toggleWidget() {
+        appDelegate?.toggleWidget()
+    }
+
     @objc func showAboutWindow() {
-            let alert = NSAlert()
-            alert.messageText = "About InTheMeeting"
-            alert.informativeText = "InTheMeeting is a free macOS application that displays your upcoming meetings and reminders.\n\nVersion 0.1.0"
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-        
-    private func fetchUpcomingEvents() -> [Date: [EKEvent]] {
-        var eventsByDate = [Date: [EKEvent]]()
-        let calendars = eventStore.calendars(for: .event)
-        
-        let startDate = Date()
-        var endDate: Date
-        let showPastEvents = UserDefaults.standard.bool(forKey: "ShowPastEventsForToday")
-        
-        if showPastEvents {
-            // Include past events for today
-            endDate = Calendar.current.date(byAdding: .day, value: 7, to: startDate)!
-        } else {
-            // Only upcoming events
-            endDate = Calendar.current.date(byAdding: .day, value: 7, to: startDate)!
-        }
-        
-        let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
-        let events = eventStore.events(matching: predicate)
-        
-        for event in events {
-            // Determine if the event should be included based on the setting
-            if !showPastEvents {
-                if event.endDate < startDate {
-                    continue // Skip past events
-                }
-            } else {
-                // If showing past events, include all events from the start date
-                // Optionally, you can further filter to only include past events from today
-                // For now, include all
-            }
-            
-            let eventDate = Calendar.current.startOfDay(for: event.startDate)
-            if eventsByDate[eventDate] != nil {
-                eventsByDate[eventDate]?.append(event)
-            } else {
-                eventsByDate[eventDate] = [event]
-            }
-        }
-        return eventsByDate
+        let alert = NSAlert()
+        alert.messageText = "About HeadsUp"
+        alert.informativeText = """
+        HeadsUp helps you stay on top of your meetings by displaying them in your menu bar \
+        and alerting you before they start.
+
+        Version 0.2.0
+
+        Features:
+        • Menu bar countdown to next meeting
+        • Fullscreen alerts before meetings start
+        • Desktop widget for at-a-glance view
+        • Meeting link detection and quick join
+
+        Created by Konstantin Merenkov
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

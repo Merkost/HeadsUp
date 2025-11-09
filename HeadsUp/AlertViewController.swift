@@ -1,40 +1,51 @@
 // AlertViewController.swift
+// HeadsUp
+//
+// Fullscreen alert view for upcoming meetings
 
 import Cocoa
 import EventKit
 
+// MARK: - Alert View Controller
 class AlertViewController: NSViewController {
+
+    // MARK: - Properties
     var event: EKEvent?
-    var timerLabel: NSTextField!
-    var updateTimer: Timer?
+    weak var appDelegate: AppDelegate?
+    private var timerLabel: NSTextField!
+    private var updateTimer: Timer?
     
+    // MARK: - View Lifecycle
     override func loadView() {
         self.view = NSView(frame: NSScreen.main?.frame ?? NSRect.zero)
     }
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         self.view.alphaValue = 0.0 // Start transparent
         setupUI()
         animateAppearance()
     }
-    
-    func animateAppearance() {
+
+    // MARK: - Animations
+    private func animateAppearance() {
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.5
+            context.duration = 0.6
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             self.view.animator().alphaValue = 1.0
         }, completionHandler: nil)
     }
-    
+
+    // MARK: - UI Setup
     func setupUI() {
         guard let event = event else { return }
         let contentView = self.view
-        
-        // Background
+
+        // Enhanced Background with blur
         let backgroundView = NSVisualEffectView(frame: contentView.bounds)
         backgroundView.autoresizingMask = [.width, .height]
         backgroundView.blendingMode = .behindWindow
-        backgroundView.material = .dark
+        backgroundView.material = .fullScreenUI
         backgroundView.state = .active
         contentView.addSubview(backgroundView)
         
@@ -68,11 +79,8 @@ class AlertViewController: NSViewController {
         dialogContainer.addSubview(titleLabel)
         
         // Time Label
-        let timeFormatter = DateFormatter()
-        timeFormatter.timeStyle = .short
-        let startTime = timeFormatter.string(from: event.startDate)
-        let endTime = timeFormatter.string(from: event.endDate)
-        let timeLabel = NSTextField(labelWithString: "\(startTime) - \(endTime)")
+        let timeRange = TimeFormatter.formatTimeRange(startDate: event.startDate, endDate: event.endDate)
+        let timeLabel = NSTextField(labelWithString: timeRange)
         timeLabel.font = NSFont.systemFont(ofSize: 24)
         timeLabel.textColor = .white
         timeLabel.alignment = .center
@@ -87,19 +95,34 @@ class AlertViewController: NSViewController {
         timerLabel.translatesAutoresizingMaskIntoConstraints = false
         dialogContainer.addSubview(timerLabel)
         
-        // Buttons
-        let buttonWidth: CGFloat = 200
-        
-        let joinButton = NSButton(title: "Join Meeting", target: self, action: #selector(joinMeeting))
-        styleButton(joinButton, backgroundColor: NSColor.systemBlue, width: buttonWidth)
-        
-        let openCalendarButton = NSButton(title: "Open in Calendar", target: self, action: #selector(openInCalendar))
-        styleButton(openCalendarButton, backgroundColor: NSColor.systemOrange, width: buttonWidth)
-        
-        let skipButton = NSButton(title: "Skip", target: self, action: #selector(skipDialog))
-        // The skip button's width will be the combined width of the two buttons above plus the spacing between them
-        let skipButtonWidth = (buttonWidth * 2) + 20 // 20 is the spacing between the buttons in the stack
-        styleButton(skipButton, backgroundColor: NSColor.systemGray, width: skipButtonWidth)
+        // Enhanced Buttons with better styling
+        let buttonWidth: CGFloat = 220
+        let buttonHeight: CGFloat = 56
+
+        let joinButton = createStyledButton(
+            title: "🎥 Join Meeting",
+            backgroundColor: NSColor.systemBlue,
+            width: buttonWidth,
+            height: buttonHeight,
+            action: #selector(joinMeeting)
+        )
+
+        let openCalendarButton = createStyledButton(
+            title: "📅 Open in Calendar",
+            backgroundColor: NSColor.systemOrange,
+            width: buttonWidth,
+            height: buttonHeight,
+            action: #selector(openInCalendar)
+        )
+
+        let skipButtonWidth = (buttonWidth * 2) + 20
+        let skipButton = createStyledButton(
+            title: "Skip",
+            backgroundColor: NSColor.systemGray,
+            width: skipButtonWidth,
+            height: buttonHeight,
+            action: #selector(skipDialog)
+        )
         
         // Button Stack for Join and Open Calendar Buttons
         let buttonStack = NSStackView(views: [joinButton, openCalendarButton])
@@ -175,18 +198,37 @@ class AlertViewController: NSViewController {
         }
     }
     
-    func styleButton(_ button: NSButton, backgroundColor: NSColor, width: CGFloat) {
-        button.font = NSFont.systemFont(ofSize: 24)
+    // MARK: - UI Helpers
+    private func createStyledButton(
+        title: String,
+        backgroundColor: NSColor,
+        width: CGFloat,
+        height: CGFloat,
+        action: Selector
+    ) -> NSButton {
+        let button = NSButton(title: title, target: self, action: action)
+        button.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
         button.isBordered = false
         button.wantsLayer = true
         button.layer?.backgroundColor = backgroundColor.cgColor
-        button.layer?.cornerRadius = 8
-        button.layer?.borderWidth = 0
-        button.layer?.borderColor = NSColor.clear.cgColor
+        button.layer?.cornerRadius = 12
         button.contentTintColor = .white
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.heightAnchor.constraint(equalToConstant: 50).isActive = true
+
+        // Add hover effect
+        let trackingArea = NSTrackingArea(
+            rect: button.bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: button,
+            userInfo: nil
+        )
+        button.addTrackingArea(trackingArea)
+
+        // Constraints
+        button.heightAnchor.constraint(equalToConstant: height).isActive = true
         button.widthAnchor.constraint(equalToConstant: width).isActive = true
+
+        return button
     }
     
     @objc func joinMeeting() {
@@ -229,22 +271,21 @@ class AlertViewController: NSViewController {
         updateTimer = nil
     }
     
+    // MARK: - Timer Updates
     @objc func updateTimerLabel() {
         guard let event = event else { return }
         let now = Date()
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = .pad
-        
+
         if now < event.startDate {
             // Time until meeting starts
             let timeInterval = event.startDate.timeIntervalSince(now)
-            timerLabel.stringValue = "Starts in \(formatter.string(from: timeInterval) ?? "0s")"
+            let countdown = TimeFormatter.formatCountdown(timeInterval)
+            timerLabel.stringValue = "Starts in \(countdown)"
         } else {
             // Time since meeting started
             let timeInterval = now.timeIntervalSince(event.startDate)
-            timerLabel.stringValue = "Started \(formatter.string(from: timeInterval) ?? "0s") ago"
+            let countdown = TimeFormatter.formatCountdown(timeInterval)
+            timerLabel.stringValue = "Started \(countdown) ago"
         }
     }
 }
