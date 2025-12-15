@@ -115,4 +115,5 @@ class CalendarService: CalendarServiceProtocol {
 struct UserDefaultsKeys {
     static let alwaysShowNextEvent = "AlwaysShowNextEvent"
     static let showPastEventsForToday = "ShowPastEventsForToday"
+    static let hasCompletedOnboarding = "HasCompletedOnboarding"
 }

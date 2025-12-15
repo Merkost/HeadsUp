@@ -104,6 +104,18 @@ class StatusMenuController: NSObject {
         showPastEventsItem.target = self
         settingsSubmenu.addItem(showPastEventsItem)
 
+        // Separator before reset onboarding
+        settingsSubmenu.addItem(NSMenuItem.separator())
+
+        // Reset onboarding item
+        let resetOnboardingItem = NSMenuItem(
+            title: "Show Welcome Guide...",
+            action: #selector(resetOnboarding),
+            keyEquivalent: ""
+        )
+        resetOnboardingItem.target = self
+        settingsSubmenu.addItem(resetOnboardingItem)
+
         settingsMenuItem.submenu = settingsSubmenu
         menu.addItem(settingsMenuItem)
     }
@@ -152,6 +164,12 @@ class StatusMenuController: NSObject {
 
     @objc func toggleWidget() {
         appDelegate?.toggleWidget()
+    }
+
+    @objc func resetOnboarding() {
+        // Reset onboarding flag and show welcome guide
+        UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasCompletedOnboarding)
+        appDelegate?.checkOnboardingStatus()
     }
 
     @objc func showAboutWindow() {
