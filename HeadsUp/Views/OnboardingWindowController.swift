@@ -16,10 +16,10 @@ class OnboardingWindowController: NSWindowController {
 
     // MARK: - Initialization
     convenience init(onComplete: @escaping (OnboardingSettings) -> Void) {
-        // Create a centered window for onboarding
+        // Create a larger, centered window for onboarding
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -32,8 +32,10 @@ class OnboardingWindowController: NSWindowController {
         window.backgroundColor = NSColor.windowBackgroundColor
         window.center()
         window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.collectionBehavior = [.fullScreenAuxiliary]
 
-        // Prevent window from closing during onboarding
+        // Initially disable close button (will enable after onboarding)
         window.standardWindowButton(.closeButton)?.isEnabled = false
 
         self.init(window: window)

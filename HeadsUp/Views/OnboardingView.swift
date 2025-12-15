@@ -19,6 +19,10 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Add top padding for title bar
+            Spacer()
+                .frame(height: 30)
+
             // Page content
             TabView(selection: $currentPage) {
                 welcomePage
@@ -41,9 +45,12 @@ struct OnboardingView: View {
             // Navigation buttons
             navigationButtons
                 .padding()
-                .background(Color(NSColor.windowBackgroundColor).opacity(0.95))
+                .background(
+                    Rectangle()
+                        .fill(Material.bar)
+                )
         }
-        .frame(width: 600, height: 500)
+        .frame(minWidth: 700, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
     }
 
     // MARK: - Pages

@@ -94,8 +94,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleAppearanceChange() {
         // Refresh status item when appearance changes
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.updateStatusItemTitle()
+        print("🎨 System appearance changed, refreshing status bar...")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self, let button = self.statusItem?.button else {
+                print("⚠️ Status item or button is nil")
+                return
+            }
+
+            // Force button to redraw
+            button.needsDisplay = true
+
+            // Make sure the status item is visible
+            self.statusItem.isVisible = true
+
+            // Refresh the title and icon
+            self.updateStatusItemTitle()
+
+            print("✓ Status bar refreshed successfully")
         }
     }
     
@@ -119,7 +135,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar")
+            if let image = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar") {
+                image.isTemplate = true  // Make icon adapt to system appearance
+                button.image = image
+            }
         }
 
         statusMenuController = StatusMenuController(
@@ -248,7 +267,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setDefaultStatusIcon() {
         statusItem.button?.title = ""
-        statusItem.button?.image = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar")
+        if let image = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar") {
+            image.isTemplate = true  // Make icon adapt to system appearance
+            statusItem.button?.image = image
+        }
     }
         
     // MARK: - Timer Management
