@@ -67,13 +67,17 @@ class OnboardingWindowController: NSWindowController {
         // Apply settings
         UserDefaults.standard.set(settings.alwaysShowNextEvent, forKey: UserDefaultsKeys.alwaysShowNextEvent)
 
-        // Notify completion
-        onComplete?(settings)
-
         // Close window with animation
         window?.animator().alphaValue = 0.0
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+
+        // CRITICAL: Notify completion AFTER window is fully closed to avoid status bar scene conflicts
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             self?.close()
+
+            // Call completion handler after window is closed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self?.onComplete?(settings)
+            }
         }
     }
 

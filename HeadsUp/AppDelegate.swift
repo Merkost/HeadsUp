@@ -66,25 +66,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindowController = OnboardingWindowController { [weak self] settings in
             guard let self = self else { return }
 
-            // Apply settings from onboarding
-            if settings.calendarAccessGranted {
-                self.setupStatusItem()
-                self.startMeetingAlertTimer()
-            } else {
-                // User skipped calendar access, show status bar anyway
-                self.setupStatusItem()
-            }
+            print("📋 Onboarding completed - setting up app...")
 
-            // Show widget if requested
-            if settings.showWidget {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.showWidget()
+            // CRITICAL: Setup status item on main thread with delay to ensure window is fully closed
+            DispatchQueue.main.async {
+                // Clear any existing status item to avoid conflicts
+                if self.statusItem != nil {
+                    print("⚠️ Clearing existing status item before recreation")
+                    NSStatusBar.system.removeStatusItem(self.statusItem)
+                    self.statusItem = nil
                 }
-            }
 
-            // If calendar access wasn't granted during onboarding, request it now
-            if !settings.calendarAccessGranted {
-                self.requestCalendarAccess()
+                // Create fresh status item
+                self.setupStatusItem()
+                print("✅ Status item created successfully")
+
+                // Apply settings from onboarding
+                if settings.calendarAccessGranted {
+                    self.startMeetingAlertTimer()
+                } else {
+                    // If calendar access wasn't granted during onboarding, request it now
+                    self.requestCalendarAccess()
+                }
+
+                // Update status item title
+                self.updateStatusItemTitle()
+
+                // Show widget if requested
+                if settings.showWidget {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        self.showWidget()
+                    }
+                }
             }
         }
 
