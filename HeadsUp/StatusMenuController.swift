@@ -26,7 +26,8 @@ class StatusMenuController: NSObject {
     // MARK: - Menu Setup
     private func setupMenu() {
         let menu = NSMenu()
-        menu.minimumWidth = 280  // Set minimum width for better appearance
+        menu.minimumWidth = 300  // Set minimum width for better appearance
+        menu.font = NSFont.systemFont(ofSize: 13)  // Consistent font size
 
         let eventsByDate = calendarService.fetchUpcomingEvents()
         let sortedDates = eventsByDate.keys.sorted()
@@ -131,6 +132,9 @@ class StatusMenuController: NSObject {
     private func addEventItems(to menu: NSMenu, eventsByDate: [Date: [EKEvent]], sortedDates: [Date]) {
         let now = Date()
         let calendar = Calendar.current
+        let maxEvents = 12  // Limit to prevent menu spanning entire screen
+        var eventCount = 0
+        var hasMoreEvents = false
 
         for (index, date) in sortedDates.enumerated() {
             // Add date header with icon
@@ -167,6 +171,12 @@ class StatusMenuController: NSObject {
             // Add events for this date
             if let events = eventsByDate[date] {
                 for event in events {
+                    // Check if we've reached the event limit
+                    if eventCount >= maxEvents {
+                        hasMoreEvents = true
+                        break
+                    }
+
                     let timeString = TimeFormatter.formatTime(event.startDate)
                     let eventTitle = event.title ?? "No Title"
 
@@ -194,24 +204,28 @@ class StatusMenuController: NSObject {
                     eventItem.target = self
                     eventItem.image = eventIcon
 
-                    // Style based on event status
+                    // Style based on event status with professional colors
                     let eventAttributes: [NSAttributedString.Key: Any]
                     if isOngoing {
+                        // Professional teal/cyan for ongoing (not bright green)
                         eventAttributes = [
                             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                            .foregroundColor: NSColor.systemGreen
+                            .foregroundColor: NSColor(calibratedRed: 0.0, green: 0.7, blue: 0.7, alpha: 1.0)
                         ]
                     } else if isUpcomingSoon {
+                        // Amber/orange for upcoming soon
                         eventAttributes = [
                             .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                            .foregroundColor: NSColor.systemOrange
+                            .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.6, blue: 0.0, alpha: 1.0)
                         ]
                     } else if isPast {
+                        // Muted for past events
                         eventAttributes = [
                             .font: NSFont.systemFont(ofSize: 12),
                             .foregroundColor: NSColor.tertiaryLabelColor
                         ]
                     } else {
+                        // Default label color
                         eventAttributes = [
                             .font: NSFont.systemFont(ofSize: 12),
                             .foregroundColor: NSColor.labelColor
@@ -220,13 +234,31 @@ class StatusMenuController: NSObject {
                     eventItem.attributedTitle = NSAttributedString(string: displayTitle, attributes: eventAttributes)
 
                     menu.addItem(eventItem)
+                    eventCount += 1
                 }
             }
 
+            // Break out of date loop if we've hit the limit
+            if hasMoreEvents {
+                break
+            }
+
             // Add separator after each date section (except the last one)
-            if index < sortedDates.count - 1 {
+            if index < sortedDates.count - 1 && eventCount < maxEvents {
                 menu.addItem(NSMenuItem.separator())
             }
+        }
+
+        // Show "more events" indicator if needed
+        if hasMoreEvents {
+            let moreItem = NSMenuItem(title: "  Show all events in Calendar...", action: #selector(openCalendar), keyEquivalent: "")
+            moreItem.target = self
+            let moreAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+            moreItem.attributedTitle = NSAttributedString(string: "  +more events... (open Calendar)", attributes: moreAttributes)
+            menu.addItem(moreItem)
         }
 
         // Final separator before settings
@@ -313,6 +345,14 @@ class StatusMenuController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Check for Updates menu item
+        let updateIcon = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: "Update")
+        updateIcon?.isTemplate = true
+        let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        updateItem.image = updateIcon
+        menu.addItem(updateItem)
+
         // About menu item
         let aboutIcon = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About")
         aboutIcon?.isTemplate = true
@@ -369,6 +409,10 @@ class StatusMenuController: NSObject {
     @objc func openCalendar() {
         // Open the system Calendar app
         NSWorkspace.shared.open(URL(string: "x-apple-eventkit://")!)
+    }
+
+    @objc func checkForUpdates() {
+        UpdateService.shared.checkForUpdatesManually()
     }
 
     @objc func showAboutWindow() {

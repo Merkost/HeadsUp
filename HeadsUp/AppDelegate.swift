@@ -27,6 +27,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         registerDefaultSettings()
         setupAppearanceObserver()
         checkOnboardingStatus()
+
+        // Check for updates in background after a short delay (don't block startup)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            UpdateService.shared.checkForUpdatesInBackground()
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
