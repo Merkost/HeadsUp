@@ -56,21 +56,22 @@ struct OnboardingView: View {
     // MARK: - Pages
 
     private var welcomePage: some View {
-        VStack(spacing: 30) {
+        VStack(spacing: 20) {
             Spacer()
+                .frame(minHeight: 10, maxHeight: 30)
 
             Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 80))
+                .font(.system(size: 70))
                 .foregroundColor(.blue)
 
             Text("Welcome to HeadsUp")
-                .font(.system(size: 36, weight: .bold))
+                .font(.system(size: 32, weight: .bold))
 
             Text("Never miss a meeting again")
                 .font(.title3)
                 .foregroundColor(.secondary)
 
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 FeatureRow(icon: "bell.fill",
                           title: "Smart Alerts",
                           description: "Get notified 60 seconds before meetings")
@@ -90,8 +91,10 @@ struct OnboardingView: View {
             .padding(.horizontal, 60)
 
             Spacer()
+                .frame(minHeight: 10, maxHeight: 30)
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     private var calendarPermissionPage: some View {
