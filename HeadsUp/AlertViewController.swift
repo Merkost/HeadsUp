@@ -62,19 +62,37 @@ class AlertViewController: NSViewController {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(closeButton)
         
-        // Container for dialog content
+        // Container for dialog content with card design
         let dialogContainer = NSView()
         dialogContainer.wantsLayer = true
-        dialogContainer.layer?.backgroundColor = NSColor.clear.cgColor
+        dialogContainer.layer?.backgroundColor = NSColor(calibratedWhite: 0.15, alpha: 0.95).cgColor
+        dialogContainer.layer?.cornerRadius = 24
+        dialogContainer.layer?.shadowColor = NSColor.black.cgColor
+        dialogContainer.layer?.shadowOpacity = 0.5
+        dialogContainer.layer?.shadowOffset = NSSize(width: 0, height: -10)
+        dialogContainer.layer?.shadowRadius = 30
         dialogContainer.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(dialogContainer)
-        
+
+        // Calendar Icon at top
+        let iconImageView = NSImageView()
+        if let iconImage = NSImage(systemSymbolName: "calendar.badge.clock", accessibilityDescription: "Meeting") {
+            iconImage.isTemplate = false
+            let config = NSImage.SymbolConfiguration(pointSize: 64, weight: .regular)
+            let tintedImage = iconImage.withSymbolConfiguration(config)
+            iconImageView.image = tintedImage
+            iconImageView.contentTintColor = NSColor.systemOrange
+        }
+        iconImageView.translatesAutoresizingMaskIntoConstraints = false
+        dialogContainer.addSubview(iconImageView)
+
         // Title Label
         let titleLabel = NSTextField(labelWithString: event.title ?? "No Title")
-        titleLabel.font = NSFont.systemFont(ofSize: 48, weight: .bold)
+        titleLabel.font = NSFont.systemFont(ofSize: 42, weight: .bold)
         titleLabel.textColor = .white
         titleLabel.alignment = .center
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.maximumNumberOfLines = 2
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         dialogContainer.addSubview(titleLabel)
         
@@ -100,16 +118,18 @@ class AlertViewController: NSViewController {
         let buttonHeight: CGFloat = 56
 
         let joinButton = createStyledButton(
-            title: "🎥 Join Meeting",
-            backgroundColor: NSColor.systemBlue,
+            title: "Join Meeting",
+            icon: "video.fill",
+            backgroundColor: NSColor(calibratedRed: 0.0, green: 0.48, blue: 1.0, alpha: 1.0),
             width: buttonWidth,
             height: buttonHeight,
             action: #selector(joinMeeting)
         )
 
         let openCalendarButton = createStyledButton(
-            title: "📅 Open in Calendar",
-            backgroundColor: NSColor.systemOrange,
+            title: "Open in Calendar",
+            icon: "calendar",
+            backgroundColor: NSColor(calibratedRed: 1.0, green: 0.58, blue: 0.0, alpha: 1.0),
             width: buttonWidth,
             height: buttonHeight,
             action: #selector(openInCalendar)
@@ -117,8 +137,9 @@ class AlertViewController: NSViewController {
 
         let skipButtonWidth = (buttonWidth * 2) + 20
         let skipButton = createStyledButton(
-            title: "Skip",
-            backgroundColor: NSColor.systemGray,
+            title: "Dismiss",
+            icon: "xmark.circle",
+            backgroundColor: NSColor(calibratedWhite: 0.3, alpha: 1.0),
             width: skipButtonWidth,
             height: buttonHeight,
             action: #selector(skipDialog)
@@ -148,18 +169,25 @@ class AlertViewController: NSViewController {
             closeButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
             closeButton.widthAnchor.constraint(equalToConstant: 24),
             closeButton.heightAnchor.constraint(equalToConstant: 24),
-            
+
             // Dialog Container Constraints
             dialogContainer.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             dialogContainer.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            dialogContainer.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 20),
-            dialogContainer.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
-            
+            dialogContainer.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 40),
+            dialogContainer.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -40),
+            dialogContainer.widthAnchor.constraint(lessThanOrEqualToConstant: 700),
+
+            // Icon Constraints
+            iconImageView.centerXAnchor.constraint(equalTo: dialogContainer.centerXAnchor),
+            iconImageView.topAnchor.constraint(equalTo: dialogContainer.topAnchor, constant: 40),
+            iconImageView.widthAnchor.constraint(equalToConstant: 64),
+            iconImageView.heightAnchor.constraint(equalToConstant: 64),
+
             // Title Label Constraints
             titleLabel.centerXAnchor.constraint(equalTo: dialogContainer.centerXAnchor),
-            titleLabel.topAnchor.constraint(equalTo: dialogContainer.topAnchor),
-            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: dialogContainer.leadingAnchor),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: dialogContainer.trailingAnchor),
+            titleLabel.topAnchor.constraint(equalTo: iconImageView.bottomAnchor, constant: 24),
+            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: dialogContainer.leadingAnchor, constant: 40),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: dialogContainer.trailingAnchor, constant: -40),
             
             // Time Label Constraints
             timeLabel.centerXAnchor.constraint(equalTo: dialogContainer.centerXAnchor),
@@ -171,8 +199,8 @@ class AlertViewController: NSViewController {
             
             // Main Button Stack Constraints
             mainButtonStack.centerXAnchor.constraint(equalTo: dialogContainer.centerXAnchor),
-            mainButtonStack.topAnchor.constraint(equalTo: timerLabel.bottomAnchor, constant: 60),
-            mainButtonStack.bottomAnchor.constraint(equalTo: dialogContainer.bottomAnchor)
+            mainButtonStack.topAnchor.constraint(equalTo: timerLabel.bottomAnchor, constant: 48),
+            mainButtonStack.bottomAnchor.constraint(equalTo: dialogContainer.bottomAnchor, constant: -40)
         ])
         
         // Handle keyboard events
@@ -201,19 +229,37 @@ class AlertViewController: NSViewController {
     // MARK: - UI Helpers
     private func createStyledButton(
         title: String,
+        icon: String? = nil,
         backgroundColor: NSColor,
         width: CGFloat,
         height: CGFloat,
         action: Selector
     ) -> NSButton {
         let button = NSButton(title: title, target: self, action: action)
-        button.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
+
+        // Add icon if provided
+        if let iconName = icon, let iconImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil) {
+            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+            if let configuredImage = iconImage.withSymbolConfiguration(config) {
+                button.image = configuredImage
+                button.imagePosition = .imageLeading
+                button.imageHugsTitle = true
+            }
+        }
+
+        button.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         button.isBordered = false
         button.wantsLayer = true
         button.layer?.backgroundColor = backgroundColor.cgColor
-        button.layer?.cornerRadius = 12
+        button.layer?.cornerRadius = 14
         button.contentTintColor = .white
         button.translatesAutoresizingMaskIntoConstraints = false
+
+        // Add subtle shadow
+        button.layer?.shadowColor = NSColor.black.cgColor
+        button.layer?.shadowOpacity = 0.3
+        button.layer?.shadowOffset = NSSize(width: 0, height: 2)
+        button.layer?.shadowRadius = 4
 
         // Add hover effect
         let trackingArea = NSTrackingArea(
@@ -249,7 +295,23 @@ class AlertViewController: NSViewController {
     @objc func openInCalendar() {
         guard let event = event else { return }
 
-        
+        // Try to open the event directly in Calendar.app using the event identifier
+        if let eventIdentifier = event.eventIdentifier {
+            // Create Calendar URL scheme to open specific event
+            // Format: calshow:<start_timestamp>
+            let timestamp = event.startDate.timeIntervalSinceReferenceDate
+            if let url = URL(string: "calshow:\(timestamp)") {
+                NSWorkspace.shared.open(url)
+            } else {
+                // Fallback: Just open Calendar.app
+                NSWorkspace.shared.open(URL(string: "x-apple-eventkit://")!)
+            }
+        } else {
+            // Fallback: Just open Calendar.app
+            NSWorkspace.shared.open(URL(string: "x-apple-eventkit://")!)
+        }
+
+        closeDialog()
     }
     
     @objc func skipDialog() {
