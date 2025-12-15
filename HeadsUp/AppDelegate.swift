@@ -16,6 +16,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     private let calendarService = CalendarService.shared
     private var timer: Timer?
+    private var statusBarCheckTimer: Timer?
     var fullscreenWindow: NSWindow?
     var statusMenuController: StatusMenuController?
     var widgetWindowController: WidgetWindowController?
@@ -26,6 +27,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         registerDefaultSettings()
         setupAppearanceObserver()
         checkOnboardingStatus()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // FAILSAFE: If user activates app (clicks dock icon), ensure status item is visible
+        print("🔄 App became active - checking status bar...")
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            if self.statusItem == nil || self.statusItem.button == nil {
+                print("⚠️ CRITICAL: Status item is nil when app activated! Recreating...")
+                self.setupStatusItem()
+                self.updateStatusItemTitle()
+            } else {
+                // Just make sure it's visible
+                self.statusItem.isVisible = true
+                print("✓ Status item is present and visible")
+            }
+        }
     }
 
     // MARK: - Onboarding
@@ -83,35 +103,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Appearance Observer
     private func setupAppearanceObserver() {
-        // Observe system appearance changes to fix status bar text disappearing
+        // Observe system appearance changes - CRITICAL FIX
+        // Use multiple observers to ensure we catch the change
+
+        // Method 1: Distributed notification
         DistributedNotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAppearanceChange),
             name: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
             object: nil
         )
+
+        // Method 2: NSApp appearance observer
+        NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            self?.handleAppearanceChange()
+        }
     }
 
     @objc private func handleAppearanceChange() {
-        // Refresh status item when appearance changes
-        print("🎨 System appearance changed, refreshing status bar...")
+        print("🎨 CRITICAL: System appearance changed - recreating status bar...")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            guard let self = self, let button = self.statusItem?.button else {
-                print("⚠️ Status item or button is nil")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else {
+                print("⚠️ Self is nil in appearance handler")
                 return
             }
 
-            // Force button to redraw
-            button.needsDisplay = true
+            print("📊 Status item before recreation: \(String(describing: self.statusItem))")
+            print("📊 Button before recreation: \(String(describing: self.statusItem?.button))")
 
-            // Make sure the status item is visible
-            self.statusItem.isVisible = true
+            // COMPLETE RECREATION - more reliable than refresh
+            // Save the old status item reference
+            let oldStatusItem = self.statusItem
 
-            // Refresh the title and icon
+            // Create new status item
+            self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+            // Configure button with template icon
+            if let button = self.statusItem.button {
+                if let image = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar") {
+                    image.isTemplate = true
+                    button.image = image
+                }
+            }
+
+            // Recreate menu controller with new status item
+            self.statusMenuController = StatusMenuController(
+                statusItem: self.statusItem,
+                calendarService: self.calendarService,
+                appDelegate: self
+            )
+
+            // Update the status item title
             self.updateStatusItemTitle()
 
-            print("✓ Status bar refreshed successfully")
+            // Make absolutely sure it's visible
+            self.statusItem.isVisible = true
+
+            // Clean up old status item
+            if let old = oldStatusItem {
+                NSStatusBar.system.removeStatusItem(old)
+            }
+
+            print("✅ Status bar completely recreated and visible")
+            print("📊 New status item: \(String(describing: self.statusItem))")
+            print("📊 New button: \(String(describing: self.statusItem?.button))")
         }
     }
     
