@@ -44,10 +44,15 @@ struct OnboardingView: View {
 
             // Navigation buttons
             navigationButtons
-                .padding()
                 .background(
+                    Color(NSColor.windowBackgroundColor)
+                        .opacity(0.95)
+                )
+                .overlay(
                     Rectangle()
-                        .fill(Material.bar)
+                        .frame(height: 1)
+                        .foregroundColor(Color.gray.opacity(0.2)),
+                    alignment: .top
                 )
         }
         .frame(minWidth: 700, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
@@ -298,20 +303,28 @@ struct OnboardingView: View {
     // MARK: - Navigation Buttons
 
     private var navigationButtons: some View {
-        HStack {
-            if currentPage > 0 && currentPage < 4 {
-                Button(action: previousPage) {
-                    HStack {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
+        HStack(spacing: 16) {
+            // Left side - Back button or spacer
+            Group {
+                if currentPage > 0 && currentPage < 4 {
+                    Button(action: previousPage) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.blue)
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    // Empty space to maintain layout
+                    Text("")
+                        .frame(width: 60)
                 }
-                .buttonStyle(.plain)
             }
 
             Spacer()
 
-            // Page indicators
+            // Center - Page indicators
             HStack(spacing: 8) {
                 ForEach(0..<5) { index in
                     Circle()
@@ -322,16 +335,26 @@ struct OnboardingView: View {
 
             Spacer()
 
-            if currentPage < 4 {
-                Button(action: nextPage) {
-                    HStack {
-                        Text(currentPage == 1 ? (calendarAccessGranted ? "Next" : "Skip for Now") : "Next")
-                        Image(systemName: "chevron.right")
+            // Right side - Next button or spacer
+            Group {
+                if currentPage < 4 {
+                    Button(action: nextPage) {
+                        HStack(spacing: 4) {
+                            Text(currentPage == 1 ? (calendarAccessGranted ? "Next" : "Skip for Now") : "Next")
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundColor(.blue)
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    // Empty space to maintain layout
+                    Text("")
+                        .frame(width: 80)
                 }
-                .buttonStyle(.plain)
             }
         }
+        .padding(.vertical, 12)
+        .padding(.horizontal)
     }
 
     // MARK: - Actions
