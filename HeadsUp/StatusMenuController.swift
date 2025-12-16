@@ -26,152 +26,118 @@ class StatusMenuController: NSObject {
     // MARK: - Menu Setup
     private func setupMenu() {
         let menu = NSMenu()
-        menu.minimumWidth = 300  // Set minimum width for better appearance
-        menu.font = NSFont.systemFont(ofSize: 13)  // Consistent font size
+        menu.minimumWidth = 280
+        menu.font = NSFont.systemFont(ofSize: 13)
 
         let eventsByDate = calendarService.fetchUpcomingEvents()
         let sortedDates = eventsByDate.keys.sorted()
 
-        // Add header section with next event info
-        addHeaderSection(to: menu)
+        // Add clean header section
+        addMinimalHeaderSection(to: menu)
 
         // Add events section
         if sortedDates.isEmpty {
-            addNoEventsItem(to: menu)
+            addMinimalNoEventsItem(to: menu)
         } else {
-            addEventItems(to: menu, eventsByDate: eventsByDate, sortedDates: sortedDates)
+            addMinimalEventItems(to: menu, eventsByDate: eventsByDate, sortedDates: sortedDates)
         }
 
-        // Add settings section
-        addSettingsSection(to: menu)
-
-        // Add bottom section (Widget, About, Quit)
-        addBottomSection(to: menu)
+        // Add clean bottom section
+        addMinimalBottomSection(to: menu)
 
         // Attach menu to status item
         statusItem.menu = menu
     }
 
-    // MARK: - Menu Building Helpers
+    // MARK: - Menu Building Helpers (Minimal Design)
 
-    private func addHeaderSection(to menu: NSMenu) {
-        // Get next event for header
+    private func addMinimalHeaderSection(to menu: NSMenu) {
+        // Show next event in a clean, minimal way
         if let nextEvent = calendarService.getNextEvent() {
             let now = Date()
-            let timeInterval = nextEvent.startDate.timeIntervalSince(now)
 
-            // Create header item with next event info
-            let headerTitle: String
-            let icon: NSImage?
+            // Event title
+            let titleItem = NSMenuItem(title: nextEvent.title ?? "No Title", action: #selector(eventSelectedFromHeader), keyEquivalent: "")
+            titleItem.representedObject = nextEvent
+            titleItem.target = self
 
-            if now >= nextEvent.startDate && now <= nextEvent.endDate {
-                // Meeting is currently in progress
-                let formattedTime = TimeFormatter.formatCountdown(nextEvent.endDate.timeIntervalSince(now))
-                headerTitle = "Current: \(nextEvent.title ?? "No Title")"
-                icon = NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Current meeting")
-                icon?.isTemplate = true
-            } else if timeInterval > 0 && timeInterval <= 3600 {
-                // Meeting within next hour
-                let formattedTime = TimeFormatter.formatCountdown(timeInterval)
-                headerTitle = "Next: \(nextEvent.title ?? "No Title") in \(formattedTime)"
-                icon = NSImage(systemSymbolName: "clock.fill", accessibilityDescription: "Next meeting")
-                icon?.isTemplate = true
-            } else {
-                // Meeting is further away
-                let timeString = TimeFormatter.formatTime(nextEvent.startDate)
-                headerTitle = "Next: \(nextEvent.title ?? "No Title") at \(timeString)"
-                icon = NSImage(systemSymbolName: "calendar.circle.fill", accessibilityDescription: "Upcoming meeting")
-                icon?.isTemplate = true
-            }
-
-            let headerItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
-            headerItem.image = icon
-            headerItem.isEnabled = false
-
-            // Use attributed string for better styling
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 14, weight: .medium),
                 .foregroundColor: NSColor.labelColor
             ]
-            headerItem.attributedTitle = NSAttributedString(string: headerTitle, attributes: attributes)
-            headerItem.image = icon
+            titleItem.attributedTitle = NSAttributedString(string: nextEvent.title ?? "No Title", attributes: titleAttributes)
+            menu.addItem(titleItem)
 
-            menu.addItem(headerItem)
+            // Time info (subtle)
+            let timeString: String
+            if now >= nextEvent.startDate && now <= nextEvent.endDate {
+                let remaining = TimeFormatter.formatCountdown(nextEvent.endDate.timeIntervalSince(now))
+                timeString = "Ends in \(remaining)"
+            } else {
+                let starts = TimeFormatter.formatTime(nextEvent.startDate)
+                timeString = starts
+            }
+
+            let timeItem = NSMenuItem(title: timeString, action: nil, keyEquivalent: "")
+            timeItem.isEnabled = false
+            let timeAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+            timeItem.attributedTitle = NSAttributedString(string: timeString, attributes: timeAttributes)
+            menu.addItem(timeItem)
+
             menu.addItem(NSMenuItem.separator())
         }
     }
 
-    private func addNoEventsItem(to menu: NSMenu) {
-        let icon = NSImage(systemSymbolName: "calendar.badge.exclamationmark", accessibilityDescription: "No events")
-        icon?.isTemplate = true
-
+    private func addMinimalNoEventsItem(to menu: NSMenu) {
         let noEventsItem = NSMenuItem(title: "No upcoming events", action: nil, keyEquivalent: "")
-        noEventsItem.image = icon
         noEventsItem.isEnabled = false
 
-        // Add helpful subtext
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12),
+            .font: NSFont.systemFont(ofSize: 13),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
         noEventsItem.attributedTitle = NSAttributedString(string: "No upcoming events", attributes: attributes)
-
         menu.addItem(noEventsItem)
 
-        // Add a tip
-        let tipItem = NSMenuItem(title: "Open Calendar to add events", action: #selector(openCalendar), keyEquivalent: "")
-        tipItem.target = self
-        let tipAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.tertiaryLabelColor
-        ]
-        tipItem.attributedTitle = NSAttributedString(string: "  Open Calendar to add events", attributes: tipAttributes)
-        menu.addItem(tipItem)
+        menu.addItem(NSMenuItem.separator())
     }
 
-    private func addEventItems(to menu: NSMenu, eventsByDate: [Date: [EKEvent]], sortedDates: [Date]) {
+    private func addMinimalEventItems(to menu: NSMenu, eventsByDate: [Date: [EKEvent]], sortedDates: [Date]) {
         let now = Date()
         let calendar = Calendar.current
-        let maxEvents = 12  // Limit to prevent menu spanning entire screen
+        let maxEvents = 8  // Show fewer events for cleaner look
         var eventCount = 0
         var hasMoreEvents = false
 
-        for (index, date) in sortedDates.enumerated() {
-            // Add date header with icon
-            let dateString = TimeFormatter.formatFullDate(date)
-            let isToday = calendar.isDateInToday(date)
-            let isTomorrow = calendar.isDateInTomorrow(date)
-
-            let dateTitle: String
-            if isToday {
-                dateTitle = "Today, \(dateString)"
-            } else if isTomorrow {
-                dateTitle = "Tomorrow, \(dateString)"
-            } else {
-                dateTitle = dateString
+        for date in sortedDates {
+            // Skip if we've shown enough
+            if eventCount >= maxEvents {
+                hasMoreEvents = true
+                break
             }
 
-            let dateIcon = NSImage(systemSymbolName: isToday ? "calendar.circle.fill" : "calendar", accessibilityDescription: "Date")
-            dateIcon?.isTemplate = true
+            let isToday = calendar.isDateInToday(date)
 
-            let dateItem = NSMenuItem(title: dateTitle, action: nil, keyEquivalent: "")
-            dateItem.image = dateIcon
-            dateItem.isEnabled = false
+            // Only show date header if not today (today's events are obvious)
+            if !isToday {
+                let dateString = TimeFormatter.formatFullDate(date)
+                let dateItem = NSMenuItem(title: dateString, action: nil, keyEquivalent: "")
+                dateItem.isEnabled = false
 
-            // Style date header
-            let dateAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: isToday ? NSColor.systemBlue : NSColor.secondaryLabelColor
-            ]
-            dateItem.attributedTitle = NSAttributedString(string: dateTitle, attributes: dateAttributes)
-            dateItem.image = dateIcon
-
-            menu.addItem(dateItem)
+                let dateAttributes: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                    .foregroundColor: NSColor.tertiaryLabelColor
+                ]
+                dateItem.attributedTitle = NSAttributedString(string: dateString.uppercased(), attributes: dateAttributes)
+                menu.addItem(dateItem)
+            }
 
             // Add events for this date
             if let events = eventsByDate[date] {
                 for event in events {
-                    // Check if we've reached the event limit
                     if eventCount >= maxEvents {
                         hasMoreEvents = true
                         break
@@ -180,55 +146,25 @@ class StatusMenuController: NSObject {
                     let timeString = TimeFormatter.formatTime(event.startDate)
                     let eventTitle = event.title ?? "No Title"
 
-                    // Determine event status and icon
-                    let eventIcon: NSImage?
-                    let isOngoing = now >= event.startDate && now <= event.endDate
-                    let isPast = now > event.endDate
-                    let isUpcomingSoon = event.startDate.timeIntervalSince(now) <= 3600 && event.startDate > now
-
-                    if isOngoing {
-                        eventIcon = NSImage(systemSymbolName: "video.circle.fill", accessibilityDescription: "Ongoing")
-                    } else if isUpcomingSoon {
-                        eventIcon = NSImage(systemSymbolName: "bell.circle.fill", accessibilityDescription: "Soon")
-                    } else if isPast {
-                        eventIcon = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: "Past")
-                    } else {
-                        eventIcon = NSImage(systemSymbolName: "circle", accessibilityDescription: "Upcoming")
-                    }
-                    eventIcon?.isTemplate = true
-
-                    // Format event title with indentation
-                    let displayTitle = "  \(timeString)  \(eventTitle)"
+                    // Simple format: just time and title
+                    let displayTitle = "\(timeString)   \(eventTitle)"
                     let eventItem = NSMenuItem(title: displayTitle, action: #selector(eventSelected(_:)), keyEquivalent: "")
                     eventItem.representedObject = event
                     eventItem.target = self
-                    eventItem.image = eventIcon
 
-                    // Style based on event status with professional colors
+                    // Minimal styling - just subtle emphasis for current event
+                    let isOngoing = now >= event.startDate && now <= event.endDate
+
                     let eventAttributes: [NSAttributedString.Key: Any]
                     if isOngoing {
-                        // Professional teal/cyan for ongoing (not bright green)
                         eventAttributes = [
-                            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                            .foregroundColor: NSColor(calibratedRed: 0.0, green: 0.7, blue: 0.7, alpha: 1.0)
-                        ]
-                    } else if isUpcomingSoon {
-                        // Amber/orange for upcoming soon
-                        eventAttributes = [
-                            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                            .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.6, blue: 0.0, alpha: 1.0)
-                        ]
-                    } else if isPast {
-                        // Muted for past events
-                        eventAttributes = [
-                            .font: NSFont.systemFont(ofSize: 12),
-                            .foregroundColor: NSColor.tertiaryLabelColor
+                            .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+                            .foregroundColor: NSColor.labelColor
                         ]
                     } else {
-                        // Default label color
                         eventAttributes = [
-                            .font: NSFont.systemFont(ofSize: 12),
-                            .foregroundColor: NSColor.labelColor
+                            .font: NSFont.systemFont(ofSize: 13),
+                            .foregroundColor: NSColor.secondaryLabelColor
                         ]
                     }
                     eventItem.attributedTitle = NSAttributedString(string: displayTitle, attributes: eventAttributes)
@@ -237,139 +173,86 @@ class StatusMenuController: NSObject {
                     eventCount += 1
                 }
             }
-
-            // Break out of date loop if we've hit the limit
-            if hasMoreEvents {
-                break
-            }
-
-            // Add separator after each date section (except the last one)
-            if index < sortedDates.count - 1 && eventCount < maxEvents {
-                menu.addItem(NSMenuItem.separator())
-            }
         }
 
-        // Show "more events" indicator if needed
+        // Show more indicator if needed
         if hasMoreEvents {
-            let moreItem = NSMenuItem(title: "  Show all events in Calendar...", action: #selector(openCalendar), keyEquivalent: "")
+            let moreItem = NSMenuItem(title: "View all in Calendar...", action: #selector(openCalendar), keyEquivalent: "")
             moreItem.target = self
             let moreAttributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 11),
-                .foregroundColor: NSColor.secondaryLabelColor
+                .foregroundColor: NSColor.tertiaryLabelColor
             ]
-            moreItem.attributedTitle = NSAttributedString(string: "  +more events... (open Calendar)", attributes: moreAttributes)
+            moreItem.attributedTitle = NSAttributedString(string: "View all in Calendar...", attributes: moreAttributes)
             menu.addItem(moreItem)
         }
 
-        // Final separator before settings
         menu.addItem(NSMenuItem.separator())
     }
 
-    private func addSettingsSection(to menu: NSMenu) {
-        // Settings menu item with icon
-        let settingsIcon = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Settings")
-        settingsIcon?.isTemplate = true
-
-        let settingsMenuItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
-        settingsMenuItem.image = settingsIcon
-        let settingsSubmenu = NSMenu(title: "Settings")
-
-        // Always show next event toggle
-        let alwaysShowNextEvent = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysShowNextEvent)
-        let toggleIcon = NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: "Menu bar")
-        toggleIcon?.isTemplate = true
-
-        let toggleItem = NSMenuItem(
-            title: "Always show next event",
-            action: #selector(toggleAlwaysShowNextEvent(_:)),
-            keyEquivalent: ""
-        )
-        toggleItem.state = alwaysShowNextEvent ? .on : .off
-        toggleItem.target = self
-        toggleItem.image = toggleIcon
-        settingsSubmenu.addItem(toggleItem)
-
-        // Show past events for today toggle
-        let showPastEvents = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
-        let pastEventsIcon = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Past events")
-        pastEventsIcon?.isTemplate = true
-
-        let showPastEventsItem = NSMenuItem(
-            title: "Show past events for today",
-            action: #selector(toggleShowPastEvents(_:)),
-            keyEquivalent: ""
-        )
-        showPastEventsItem.state = showPastEvents ? .on : .off
-        showPastEventsItem.target = self
-        showPastEventsItem.image = pastEventsIcon
-        settingsSubmenu.addItem(showPastEventsItem)
-
-        // Separator before reset onboarding
-        settingsSubmenu.addItem(NSMenuItem.separator())
-
-        // Reset onboarding item
-        let guideIcon = NSImage(systemSymbolName: "book.circle", accessibilityDescription: "Guide")
-        guideIcon?.isTemplate = true
-
-        let resetOnboardingItem = NSMenuItem(
-            title: "Show Welcome Guide...",
-            action: #selector(resetOnboarding),
-            keyEquivalent: ""
-        )
-        resetOnboardingItem.target = self
-        resetOnboardingItem.image = guideIcon
-        settingsSubmenu.addItem(resetOnboardingItem)
-
-        settingsMenuItem.submenu = settingsSubmenu
-        menu.addItem(settingsMenuItem)
-    }
-
-    private func addBottomSection(to menu: NSMenu) {
-        menu.addItem(NSMenuItem.separator())
-
-        // Refresh menu item
-        let refreshIcon = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
-        refreshIcon?.isTemplate = true
-        let refreshItem = NSMenuItem(title: "Refresh Events", action: #selector(refreshMenu), keyEquivalent: "r")
-        refreshItem.target = self
-        refreshItem.image = refreshIcon
-        menu.addItem(refreshItem)
-
-        // Show/Hide Widget menu item
-        let widgetIcon = NSImage(systemSymbolName: "macwindow", accessibilityDescription: "Widget")
-        widgetIcon?.isTemplate = true
-        let widgetItem = NSMenuItem(title: "Toggle Desktop Widget", action: #selector(toggleWidget), keyEquivalent: "w")
+    private func addMinimalBottomSection(to menu: NSMenu) {
+        // Widget toggle
+        let widgetItem = NSMenuItem(title: "Desktop Widget", action: #selector(toggleWidget), keyEquivalent: "w")
         widgetItem.target = self
-        widgetItem.image = widgetIcon
         menu.addItem(widgetItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Check for Updates menu item
-        let updateIcon = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: "Update")
-        updateIcon?.isTemplate = true
+        // Settings submenu (collapsed for minimalism)
+        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: ",")
+        let settingsSubmenu = NSMenu()
+
+        // Always show next event
+        let alwaysShowNextEvent = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alwaysShowNextEvent)
+        let showNextItem = NSMenuItem(
+            title: "Always show next event",
+            action: #selector(toggleAlwaysShowNextEvent(_:)),
+            keyEquivalent: ""
+        )
+        showNextItem.state = alwaysShowNextEvent ? .on : .off
+        showNextItem.target = self
+        settingsSubmenu.addItem(showNextItem)
+
+        // Show past events
+        let showPastEvents = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
+        let pastEventsItem = NSMenuItem(
+            title: "Show past events for today",
+            action: #selector(toggleShowPastEvents(_:)),
+            keyEquivalent: ""
+        )
+        pastEventsItem.state = showPastEvents ? .on : .off
+        pastEventsItem.target = self
+        settingsSubmenu.addItem(pastEventsItem)
+
+        settingsSubmenu.addItem(NSMenuItem.separator())
+
+        // Welcome guide
+        let guideItem = NSMenuItem(title: "Show Welcome Guide...", action: #selector(resetOnboarding), keyEquivalent: "")
+        guideItem.target = self
+        settingsSubmenu.addItem(guideItem)
+
+        settingsItem.submenu = settingsSubmenu
+        menu.addItem(settingsItem)
+
+        // Check for updates
         let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
         updateItem.target = self
-        updateItem.image = updateIcon
         menu.addItem(updateItem)
 
-        // About menu item
-        let aboutIcon = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About")
-        aboutIcon?.isTemplate = true
-        let aboutItem = NSMenuItem(title: "About HeadsUp", action: #selector(showAboutWindow), keyEquivalent: "")
-        aboutItem.target = self
-        aboutItem.image = aboutIcon
-        menu.addItem(aboutItem)
+        menu.addItem(NSMenuItem.separator())
 
-        // Quit menu item
-        let quitIcon = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
-        quitIcon?.isTemplate = true
+        // Quit
         let quitItem = NSMenuItem(title: "Quit HeadsUp", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quitItem.image = quitIcon
         menu.addItem(quitItem)
     }
 
     // MARK: - Action Handlers
+
+    @objc func eventSelectedFromHeader(_ sender: NSMenuItem) {
+        guard let event = sender.representedObject as? EKEvent else { return }
+        appDelegate?.showFullscreenAlert(for: event)
+    }
+
     @objc func eventSelected(_ sender: NSMenuItem) {
         guard let event = sender.representedObject as? EKEvent else { return }
         appDelegate?.showFullscreenAlert(for: event)
