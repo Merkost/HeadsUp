@@ -44,25 +44,36 @@ class CalendarService: CalendarServiceProtocol {
     func fetchUpcomingEvents(daysAhead: Int = 7) -> [Date: [EKEvent]] {
         var eventsByDate = [Date: [EKEvent]]()
         let calendars = eventStore.calendars(for: .event)
+        let now = Date()
 
-        let startDate = Date()
-        guard let endDate = Calendar.current.date(byAdding: .day, value: daysAhead, to: startDate) else {
+        // Start from beginning of today to catch ongoing events
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        guard let endDate = Calendar.current.date(byAdding: .day, value: daysAhead, to: now) else {
             return eventsByDate
         }
 
-        let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
+        let predicate = eventStore.predicateForEvents(withStart: startOfToday, end: endDate, calendars: calendars)
         let events = eventStore.events(matching: predicate)
 
-        // Get user preference for showing past events
-        let showPastEvents = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
+        // Get user preference for showing past events (only for today)
+        let showPastEventsForToday = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showPastEventsForToday)
+        let calendar = Calendar.current
 
         for event in events {
-            // Skip past events if setting is disabled
-            if !showPastEvents && event.endDate < startDate {
+            let isToday = calendar.isDateInToday(event.startDate)
+            let isPast = event.endDate < now
+
+            // Skip past events from previous days entirely
+            if !isToday && isPast {
                 continue
             }
 
-            let eventDate = Calendar.current.startOfDay(for: event.startDate)
+            // For today's events: skip past events if setting is disabled
+            if isToday && isPast && !showPastEventsForToday {
+                continue
+            }
+
+            let eventDate = calendar.startOfDay(for: event.startDate)
             if eventsByDate[eventDate] != nil {
                 eventsByDate[eventDate]?.append(event)
             } else {
@@ -73,19 +84,20 @@ class CalendarService: CalendarServiceProtocol {
         return eventsByDate
     }
 
-    /// Gets the next upcoming event
+    /// Gets the next upcoming event (or current ongoing event)
     /// - Returns: Next event or nil if none found
     func getNextEvent() -> EKEvent? {
         let calendars = eventStore.calendars(for: .event)
-        let startDate = Date()
-        guard let endDate = Calendar.current.date(byAdding: .day, value: 7, to: startDate) else {
+        let now = Date()
+        guard let endDate = Calendar.current.date(byAdding: .day, value: 7, to: now) else {
             return nil
         }
 
-        let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
+        let predicate = eventStore.predicateForEvents(withStart: now, end: endDate, calendars: calendars)
         let events = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
 
-        return events.first { $0.startDate >= startDate }
+        // Return first event that hasn't ended yet (includes ongoing events)
+        return events.first { $0.endDate >= now }
     }
 
     /// Gets events starting within a specific time window
